@@ -76,7 +76,10 @@ function getTodayStatus(workingHours) {
 async function fetchFavorites(){
     const user = JSON.parse(localStorage.getItem('user') || '{}')
     if(!user.id)return
-    const res = await fetch(`http://localhost:3000/api/favorites/${user.id}`)
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/favorites/${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
     const data = await res.json()
    favorites.value = data.map(fav => ({...fav, isFav: true}) )
 }

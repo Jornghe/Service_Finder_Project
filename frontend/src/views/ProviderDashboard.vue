@@ -311,7 +311,7 @@ watch(categorySelection, (val) => {
 })
 
 async function fetchCategories() {
-    const res = await fetch('http://localhost:3000/api/categories/all')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/categories/all`)
     const data = await res.json()
     availableCategories.value = Array.isArray(data) ? data : []
 }
@@ -366,12 +366,14 @@ function handlePhotoUpload(e) {
 }
 
 async function uploadVerificationDoc(file, documentType) {
+    const token = localStorage.getItem('token')
     const formData = new FormData()
     formData.append('file', file)
     formData.append('userId', user.id)
     formData.append('documentType', documentType)
-    const res = await fetch('http://localhost:3000/api/verifications/upload', {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/verifications/upload`, {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
         body: formData
     })
     if (!res.ok) return null
@@ -400,13 +402,15 @@ function openEdit(service) {
 async function submitListing() {
     const { name, category, phone, address, description, latitude, longitude, price_min, price_max, provider_type, service_range_km } = form.value
 
+    const token = localStorage.getItem('token')
     let photo_url = form.value.photo_url || null
     if (photoFile.value) {
         const formData = new FormData()
         formData.append('photo', photoFile.value)
         formData.append('userId', user.id)
-        const uploadRes = await fetch('http://localhost:3000/api/services/upload-photo', {
+        const uploadRes = await fetch(`${import.meta.env.VITE_API_URL}/api/services/upload-photo`, {
             method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
             body: formData
         })
         if (uploadRes.ok) {
@@ -416,25 +420,25 @@ async function submitListing() {
     }
 
     if (editingId.value) {
-        const res = await fetch(`http://localhost:3000/api/services/${editingId.value}`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/services/${editingId.value}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ name, category, phone, address, description, latitude, longitude, photo_url, price_min, price_max, provider_type, service_range_km: provider_type === 'freelancer' ? service_range_km : null })
         })
         if (!res.ok) { alert('Failed to update service'); return }
     } else {
-        const res = await fetch('http://localhost:3000/api/services', {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/services`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ user_id: user.id, name, category, phone, address, description, latitude, longitude, photo_url, price_min, price_max, provider_type, service_range_km: provider_type === 'freelancer' ? service_range_km : null })
         })
         if (!res.ok) { alert('Failed to create service'); return }
         const createdService = await res.json()
 
         for (const wh of workingHours.value) {
-            await fetch('http://localhost:3000/api/working-hours', {
+            await fetch(`${import.meta.env.VITE_API_URL}/api/working-hours`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ service_id: createdService.id, day: wh.day, is_open: wh.is_open, open_time: wh.open_time, close_time: wh.close_time })
             })
         }
@@ -461,26 +465,26 @@ async function submitListing() {
 }
 
 async function fetchMyServices(){
-    const res = await fetch(`http://localhost:3000/api/services/user/${user.id}`)
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/services/user/${user.id}`)
     myServices.value = await res.json()
 }
 
 async function fetchMyResponses(){
-    const res = await fetch(`http://localhost:3000/api/responses/provider/${user.id}`)
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/responses/provider/${user.id}`)
     myResponses.value = await res.json()
 }
 
 async function fetchReviews(){
     if(!myServices.value.length) return
     for(const service of myServices.value){
-        const res = await fetch(`http://localhost:3000/api/reviews/${service.id}`)
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/reviews/${service.id}`)
         reviewsByService.value[service.id] = await res.json()
     }
 }
 
 
 async function fetchOpenRequests(){
-    const res = await fetch(`http://localhost:3000/api/requests`)
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/requests`)
     openRequests.value = await res.json()
 }
 
@@ -493,7 +497,7 @@ onMounted(async () => {
 })
 
 async function submitVerification() {
-    const checkRes = await fetch(`http://localhost:3000/api/verifications/check/${verifyingServiceId.value}`)
+    const checkRes = await fetch(`${import.meta.env.VITE_API_URL}/api/verifications/check/${verifyingServiceId.value}`)
     const checkData = await checkRes.json()
     if (checkData.hasPending) {
         alert('You already have a pending verification for this service. Please wait for the admin to review it before submitting again.')
@@ -512,9 +516,10 @@ async function submitVerification() {
         if (!doc.file) continue
         const url = await uploadVerificationDoc(doc.file, doc.type)
         if (!url) continue
-        await fetch('http://localhost:3000/api/verifications', {
+        const token = localStorage.getItem('token')
+        await fetch(`${import.meta.env.VITE_API_URL}/api/verifications`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ service_id: verifyingServiceId.value, provider_id: user.id, document_type: doc.type, document_url: url })
         })
     }
@@ -529,7 +534,11 @@ async function submitVerification() {
 
 async function deleteService(id) {
     if (!confirm('Are you sure you want to delete this service? This cannot be undone.')) return
-    const res = await fetch(`http://localhost:3000/api/services/${id}`, { method: 'DELETE' })
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/services/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
     if (!res.ok) { alert('Failed to delete service'); return }
     await fetchMyServices()
 }

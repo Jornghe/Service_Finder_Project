@@ -479,13 +479,13 @@ const isProvider = ref(user.is_provider || false)
 
 async function fetchMyServices(){
     if(!user.id)return
-    const res = await fetch(`http://localhost:3000/api/services/user/${user.id}`)
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/services/user/${user.id}`)
     const data = await res.json()
     myServices.value = data
 }
 
 async function fetchCategories(){
-    const res = await fetch('http://localhost:3000/api/categories/all')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/categories/all`)
     const data = await res.json()
     availableCategories.value = Array.isArray(data) ? data : []
 }
@@ -494,7 +494,10 @@ onMounted(async () => {
     if(isProvider.value) fetchMyServices()
     fetchCategories()
     if(user.id) {
-        const res = await fetch(`http://localhost:3000/api/auth/password-type/${user.id}`)
+        const token = localStorage.getItem('token')
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/password-type/${user.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
         const data = await res.json()
         isGoogleAccount.value = data.isGoogleOAuth
     }
@@ -504,35 +507,43 @@ async function submitProvider(){
     submitting.value = true
     const { name, category, phone, address, description, latitude, longitude, price_min, price_max, provider_type, service_range_km } = providerForm.value
 
+    const token = localStorage.getItem('token')
     let photo_url = null
     if (providerPhotoFile.value) {
         const formData = new FormData()
         formData.append('photo', providerPhotoFile.value)
         formData.append('userId', user.id)
-        const uploadRes = await fetch('http://localhost:3000/api/services/upload-photo', { method: 'POST', body: formData })
+        const uploadRes = await fetch(`${import.meta.env.VITE_API_URL}/api/services/upload-photo`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+        })
         if (uploadRes.ok) {
             const uploadData = await uploadRes.json()
             photo_url = uploadData.photo_url
         }
     }
 
-    const res = await fetch('http://localhost:3000/api/services', {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/services`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ user_id: user.id, name, category, phone, address, description, latitude: latitude || 0, longitude: longitude || 0, photo_url, price_min, price_max, provider_type, service_range_km: provider_type === 'freelancer' ? service_range_km : null })
     })
     if (res.ok) {
         const createdService = await res.json()
         for (const wh of providerWorkingHours.value) {
-            await fetch('http://localhost:3000/api/working-hours', {
+            await fetch(`${import.meta.env.VITE_API_URL}/api/working-hours`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ service_id: createdService.id, day: wh.day, is_open: wh.is_open, open_time: wh.open_time, close_time: wh.close_time })
             })
         }
     }
 
-    await fetch(`http://localhost:3000/api/auth/set-provider/${user.id}`, { method: 'PATCH' })
+    await fetch(`${import.meta.env.VITE_API_URL}/api/auth/set-provider/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
     user.is_provider = true
     localStorage.setItem('user', JSON.stringify(user))
 
@@ -559,9 +570,10 @@ async function submitProvider(){
 }
 
 async function saveProfile(){
-    await fetch(`http://localhost:3000/api/auth/update/${user.id}`,{
+    const token = localStorage.getItem('token')
+    await fetch(`${import.meta.env.VITE_API_URL}/api/auth/update/${user.id}`,{
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
             name: editName.value,
             email: editEmail.value,
@@ -580,9 +592,10 @@ async function setPassword(){
     if(newPassword.value !== confirmPassword.value) { passwordError.value = 'Passwords do not match'; return }
     passwordError.value = ''
     passwordSuccess.value = ''
-    const res = await fetch(`http://localhost:3000/api/auth/set-password/${user.id}`, {
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/set-password/${user.id}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ newPassword: newPassword.value })
     })
     const data = await res.json()
@@ -600,9 +613,10 @@ async function changePassword(){
     }
     passwordError.value = ''
     passwordSuccess.value = ''
-    const res= await fetch(`http://localhost:3000/api/auth/change-password/${user.id}`,{
+    const token = localStorage.getItem('token')
+    const res= await fetch(`${import.meta.env.VITE_API_URL}/api/auth/change-password/${user.id}`,{
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
             currentPassword: currentPassword.value,
             newPassword: newPassword.value
@@ -622,9 +636,10 @@ async function changePassword(){
 async function deleteAccount(){
     if(!deletePassword.value) return
     if(!confirm('Are you sure you want to delete your account? This action cannot be undone.')) return
-    const res = await fetch(`http://localhost:3000/api/auth/delete/${user.id}`,{
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/delete/${user.id}`,{
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ Password: deletePassword.value })
     })
     if(!res.ok) { alert('Incorrect password'); return }

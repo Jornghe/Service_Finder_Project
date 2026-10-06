@@ -125,13 +125,13 @@ function getTodayStatus(workingHours) {
 }
 
 async function fetchServices(){
-    const res = await fetch('http://localhost:3000/api/services')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/services`)
     const data = await res.json()
     services.value = data
 }
 
 async function fetchCategories(){
-    const res = await fetch('http://localhost:3000/api/categories/all')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/categories/all`)
     const data = await res.json()
     allCategories.value = data
     categories.value = data.slice(0, 6)
@@ -140,7 +140,10 @@ async function fetchCategories(){
 async function checkFavs(){
     const user = JSON.parse(localStorage.getItem('user') || '{}' )
     if(!user.id)return
-    const res = await fetch(`http://localhost:3000/api/favorites/${user.id}`)
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/favorites/${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
     const favData = await res.json()
     services.value = services.value.map(s => ({
         ...s,

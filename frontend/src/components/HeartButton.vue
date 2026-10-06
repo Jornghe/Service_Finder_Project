@@ -22,17 +22,18 @@ async function toggleFav(){
     const user = JSON.parse(localStorage.getItem('user') || '{}')
     if(!user.id || !props.serviceId) return
 
+    const token = localStorage.getItem('token')
     if (props.modelValue){
-        await fetch('http://localhost:3000/api/favorites',{
+        await fetch(`${import.meta.env.VITE_API_URL}/api/favorites`,{
             method: 'DELETE',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ user_id: user.id, service_id: props.serviceId})
         })
         emit('update:modelValue', false)
     } else{
-        await fetch('http://localhost:3000/api/favorites',{
+        await fetch(`${import.meta.env.VITE_API_URL}/api/favorites`,{
             method: 'POST',
-            headers: { 'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ user_id: user.id, service_id: props.serviceId })
         })
         emit('update:modelValue', true)

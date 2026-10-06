@@ -73,19 +73,25 @@ const reviewCount = ref(0)
 
 
 async function fetchRequests(){
-    const res = await fetch(`http://localhost:3000/api/requests/user/${user.id}`)
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/user/${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
     const data = await res.json()
     requests.value = Array.isArray(data) ? data : []
 }
 
 async function fetchFavorites(){
-    const res = await fetch(`http://localhost:3000/api/favorites/${user.id}`)
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/favorites/${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
     const data = await res.json()
     favorites.value = Array.isArray(data) ? data : []
 }
 
 async function fetchReviewCount(){
-    const res = await fetch(`http://localhost:3000/api/reviews/user/${user.id}`)
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/reviews/user/${user.id}`)
     const data = await res.json()
     reviewCount.value = Array.isArray(data) ? data.length : 0
 }

@@ -284,71 +284,75 @@ onMounted(async ()=>{
     ])
 })
 
+function authHeaders(extra = {}) {
+    return { 'Authorization': `Bearer ${localStorage.getItem('token')}`, ...extra }
+}
+
 async function fetchStats(){
-    const res = await fetch('http://localhost:3000/api/admin/stats')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/stats`, { headers: authHeaders() })
     const data = await res.json()
     stats.value = data
 }
 
 async function fetchUsers(){
-    const res = await fetch('http://localhost:3000/api/admin/users')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users`, { headers: authHeaders() })
     const data = await res.json()
     users.value = Array.isArray(data) ? data : []
 }
 
 async function fetchListings(){
-    const res = await fetch('http://localhost:3000/api/admin/listings')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/listings`, { headers: authHeaders() })
     const data = await res.json()
     listings.value = Array.isArray(data) ? data : []
 }
 
 async function fetchVerifications(){
-    const res = await fetch('http://localhost:3000/api/admin/verifications')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/verifications`, { headers: authHeaders() })
     const data = await res.json()
     verifications.value = Array.isArray(data) ? data : []
 }
 
 async function fetchRequests(){
-    const res = await fetch('http://localhost:3000/api/admin/requests')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/requests`, { headers: authHeaders() })
     const data = await res.json()
     requests.value = data
 }
 
 async function fetchReviews(){
-    const res = await fetch('http://localhost:3000/api/admin/reviews')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/reviews`, { headers: authHeaders() })
     const data = await res.json()
     reviews.value = Array.isArray(data) ? data : []
 }
 
 
 async function suspendUser(id, currentlySuspended){
-    await fetch(`http://localhost:3000/api/admin/users/${id}/suspend`, {
+    await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/${id}/suspend`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ suspend: !currentlySuspended })
     })
     await fetchUsers()
 }
 
 async function removeListing(id){
-    await fetch(`http://localhost:3000/api/admin/listings/${id}`, { method: 'DELETE' })
+    await fetch(`${import.meta.env.VITE_API_URL}/api/admin/listings/${id}`, { method: 'DELETE', headers: authHeaders() })
     await fetchListings()
 }
 
 async function approveVerification(serviceId){
-    await fetch(`http://localhost:3000/api/admin/verifications/${serviceId}/approve`, { method: 'PATCH' })
+    await fetch(`${import.meta.env.VITE_API_URL}/api/admin/verifications/${serviceId}/approve`, { method: 'PATCH', headers: authHeaders() })
     expandedVerification.value = null
     await fetchVerifications()
 }
 
 async function rejectVerification(serviceId){
-    await fetch(`http://localhost:3000/api/admin/verifications/${serviceId}/reject`, { method: 'PATCH' })
+    await fetch(`${import.meta.env.VITE_API_URL}/api/admin/verifications/${serviceId}/reject`, { method: 'PATCH', headers: authHeaders() })
     expandedVerification.value = null
     await fetchVerifications()
 }
 
 async function removeReview(id){
-    await fetch(`http://localhost:3000/api/admin/reviews/${id}`, { method: 'DELETE' })
+    await fetch(`${import.meta.env.VITE_API_URL}/api/admin/reviews/${id}`, { method: 'DELETE', headers: authHeaders() })
     await fetchReviews()
 }
 const tabs = [
@@ -375,16 +379,16 @@ const categories = ref([])
 const newCategoryName = ref('')
 
 async function fetchCategories() {
-    const res = await fetch('http://localhost:3000/api/categories/all')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/categories/all`, { headers: authHeaders() })
     const data = await res.json()
     categories.value = Array.isArray(data) ? data : []
 }
 
 async function addCategory() {
     if (!newCategoryName.value.trim()) return
-    const res = await fetch('http://localhost:3000/api/categories', {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/categories`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name: newCategoryName.value.trim() })
     })
     if (!res.ok) { alert('Failed to add category'); return }
@@ -393,7 +397,7 @@ async function addCategory() {
 }
 
 async function viewDocument(filePath) {
-    const res = await fetch(`http://localhost:3000/api/verifications/signed-url?path=${filePath}`)
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/verifications/signed-url?path=${filePath}`, { headers: authHeaders() })
     const data = await res.json()
     window.open(data.url, '_blank')
 }

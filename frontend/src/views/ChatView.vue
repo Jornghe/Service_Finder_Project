@@ -68,7 +68,10 @@ const route = useRoute()
 
 async function fetchConversations(){
     if(!user.id)return
-    const res = await fetch(`http://localhost:3000/api/chat/conversation/${user.id}`)
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/chat/conversation/${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
     const data = await res.json()
     conversations.value = data
 }
@@ -76,16 +79,20 @@ async function fetchConversations(){
 async function openConversation(conv){
     activeConversation.value = conv
     if(!user.id)return
-    const res = await fetch(`http://localhost:3000/api/chat/message/${conv.id}`)
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/chat/message/${conv.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
     const data = await res.json()
     messages.value = data
 }
 
 async function sendMessage(){
     if(!newMessage.value.trim() || !activeConversation.value)return
-    await fetch(`http://localhost:3000/api/chat/messages`,{
+    const token = localStorage.getItem('token')
+    await fetch(`${import.meta.env.VITE_API_URL}/api/chat/messages`,{
         method:'POST',
-        headers:{ 'Content-Type': 'application/json'}, 
+        headers:{ 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
             conversation_id: activeConversation.value.id,
             sender_id: user.id,

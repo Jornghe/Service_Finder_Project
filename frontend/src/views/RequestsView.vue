@@ -191,21 +191,24 @@ const browsableRequests = computed(() => {
 })
 
 async function fetchRequests(){
-    const res = await fetch(`http://localhost:3000/api/requests/`)
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/`)
     const data = await res.json()
     requests.value = data
 }
 
 async function fetchMyRequests(){
     if(!user.id)return
-    const res = await fetch(`http://localhost:3000/api/requests/user/${user.id}`)
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/user/${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
     const data = await res.json()
     myRequests.value = data
 }
 
 async function fetchMyResponses(){
     if(!user.id) return
-    const res = await fetch(`http://localhost:3000/api/responses/provider/${user.id}`)
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/responses/provider/${user.id}`)
     const data = await res.json()
     myResponses.value = data
 }
@@ -218,10 +221,11 @@ async function submitRequest(){
     formError.value = ''
     posting.value = true
 
+const token = localStorage.getItem('token')
 if(editingRequest.value){
-    await fetch(`http://localhost:3000/api/requests/${editingRequest.value.id}`,{
+    await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${editingRequest.value.id}`,{
         method: 'PATCH',
-        headers: { 'Content-Type' : 'application/json'},
+        headers: { 'Content-Type' : 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
             title:newTitle.value,
             category: newCategory.value,
@@ -232,9 +236,9 @@ if(editingRequest.value){
         })
     })
 }else{
-    await fetch(`http://localhost:3000/api/requests`,{
+    await fetch(`${import.meta.env.VITE_API_URL}/api/requests`,{
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
             customer_id: user.id,
             title: newTitle.value,
@@ -265,7 +269,7 @@ if (mapInstance) { mapInstance.remove(); mapInstance = null; marker = null }
 }
 
 async function fetchCategories(){
-    const res = await fetch('http://localhost:3000/api/categories/all')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/categories/all`)
     const data = await res.json()
     categories.value = data
 }
@@ -315,9 +319,10 @@ function openEdit(req){
 }
 
 async function updateStatus(id, status){
-    await fetch(`http://localhost:3000/api/requests/${id}/status`,{
+    const token = localStorage.getItem('token')
+    await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${id}/status`,{
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ status })
     })
     await fetchMyRequests()
@@ -325,8 +330,10 @@ async function updateStatus(id, status){
 
 async function deleteRequest(id){
     if(!confirm('Delete this request?')) return
-    await fetch(`http://localhost:3000/api/requests/${id}`, {
-        method : 'DELETE'
+    const token = localStorage.getItem('token')
+    await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${id}`, {
+        method : 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
     })
     await fetchMyRequests()
 }
@@ -334,9 +341,10 @@ async function deleteRequest(id){
 async function submitResponse(){
     if(!responseMessage.value)return
     responding.value = true
-    await fetch(`http://localhost:3000/api/responses`,{
+    const token = localStorage.getItem('token')
+    await fetch(`${import.meta.env.VITE_API_URL}/api/responses`,{
         method: 'POST',
-        headers: { 'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
             provider_id: user.id,
             request_id: respondingRequest.value.id,

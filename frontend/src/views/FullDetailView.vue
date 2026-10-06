@@ -155,7 +155,7 @@ function formatTime(time) {
 
 async function fetchWorkingHours() {
     if (!service.value?.id) return
-    const res = await fetch(`http://localhost:3000/api/working-hours/${service.value.id}`)
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/working-hours/${service.value.id}`)
     const data = await res.json()
     workingHours.value = Array.isArray(data) ? data : []
 }
@@ -222,12 +222,15 @@ function toggleFav(){
 async function checkIfFav(){
     const user = JSON.parse(localStorage.getItem('user') || '{}' )
     if(!user.id || !service.value)return
-    const res = await fetch(`http://localhost:3000/api/favorites/${user.id}`)
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/favorites/${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
     const data = await res.json()
     isFav.value = data.some(fav => fav.service_id === service.value.id)
 }
 async function fetchService(){
-    const res = await fetch(`http://localhost:3000/api/services/${slug}`)
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/services/${slug}`)
     const data = await res.json()
     service.value = data
 }
@@ -236,9 +239,10 @@ async function startChat() {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
     if (!user.id) return router.push('/login')
     if (user.id === service.value?.user_id) return alert('You cannot chat with yourself.')
-    const res = await fetch('http://localhost:3000/api/chat/conversation', {
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/chat/conversation`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ user_one_id: user.id, user_two_id: service.value.user_id })
     })
     const data = await res.json()
@@ -246,7 +250,7 @@ async function startChat() {
 }
 
 async function fetchReviews(){
-    const res = await fetch(`http://localhost:3000/api/reviews/${service.value.id}`)
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/reviews/${service.value.id}`)
     const data = await res.json()
     reviews.value = data
 }
@@ -259,9 +263,10 @@ function checkIfReviewed(){
 async function submitReview(){
     if(!newRating.value)return alert('Please select a star rating')
     submitting.value = true
-    const res = await fetch('http://localhost:3000/api/reviews',{
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/reviews`,{
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
             service_id: service.value.id,
             customer_id: user.id,

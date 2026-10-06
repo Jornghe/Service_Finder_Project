@@ -9,7 +9,7 @@ const router = useRouter()
 onMounted(async () =>{
     const user = JSON.parse(localStorage.getItem('user') || '{}')
     if (user.id) {
-        const res = await fetch(`http://localhost:3000/api/auth/check-suspend/${user.id}`)
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/check-suspend/${user.id}`)
         const data = await res.json()
         if (data.is_suspend) {
             localStorage.removeItem('token')
@@ -25,7 +25,7 @@ onMounted(async () =>{
     if(data.session && !localStorage.getItem('token')){
         const authUser = data.session.user
 
-        const res = await fetch('http://localhost:3000/api/auth/oauth-sync', {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/oauth-sync`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: authUser.id, name: authUser.user_metadata.full_name, email: authUser.email })
