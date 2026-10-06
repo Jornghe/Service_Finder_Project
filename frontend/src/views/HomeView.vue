@@ -22,7 +22,7 @@
                   <div class="sidebar-section">
                     <div class="sidebar-title">Categories</div>
                     <div class="cats-grid">
-                       <div v-for="cat in DisplayedCategories" :key="cat.id" class="cat-item">
+                       <div v-for="cat in DisplayedCategories" :key="cat.id" class="cat-item" :class="{ active: activeCategory === cat.name }" @click="activeCategory = activeCategory === cat.name ? '' : cat.name">
                         {{ cat.name }}
                        </div>
                     </div>
@@ -33,17 +33,27 @@
 
                   <!-- Nearby Services -->
                    <div class="sidebar-section">
-                    <div class="sidebar-title">📍 Nearby services</div>
+                    <div class="sidebar-title">📍 {{ userLocation ? 'Nearby Services' : 'All Services' }}</div>
+                    <div v-if="userLocation" style="font-size: 12px; color: #2ec4b6; margin-top: 4px;">Showing within 5km · freelancers by their range</div>
                    </div>
 
                    <div class="service-list">
-                    <div class="service-row" v-for ="service in services" :key = "service.id" @click="goToService(service.slug)">
-                    <div class="service-image"></div>
+                    <div v-if="nearbyServices.length === 0" style="padding: 20px; text-align: center; color: #aaa; font-size: 14px;">No services found near you.</div>
+                    <div class="service-row" v-for="service in nearbyServices" :key="service.id" @click="goToService(service.slug)">
+                    <div class="service-image">
+                        <img v-if="service.photo_url" :src="service.photo_url" style="width:100%;height:100%;object-fit:cover;border-radius:10px;"/>
+                    </div>
                     <div class="service-info">
-                        <div class="service-name">{{ service.name }}</div>
+                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                            <div class="service-name">{{ service.name }}</div>
+                            <span v-if="service?.is_verified" class="verified-badge">✓ Verified</span>
+                        </div>
                         <div class="service-meta" style="display: flex; align-items: center; gap: 4px;">
                             <span>{{ service.avg_rating }}</span>
-                            <vue3-star-ratings v-model="service.avg_rating"  :star-size="14"  :disable-click="true" star-color="#F39C12" inactive-color="#e0e0e0"/>                     
+                            <vue3-star-ratings v-model="service.avg_rating"  :star-size="14"  :disable-click="true" star-color="#F39C12" inactive-color="#e0e0e0"/>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span class="badge-open" :class="{ 'badge-closed': !getTodayStatus(service.working_hours).open }">{{ getTodayStatus(service.working_hours).label }}</span>
                         </div>
                         <div>📍 {{ service.address }}</div>
                     </div>
@@ -81,6 +91,38 @@ const services = ref([])
 const categories = ref([])
 const showAllCats = ref(false)
 const allCategories = ref([])
+const activeCategory = ref('')
+
+function formatTime(time) {
+    if (!time) return ''
+    const [h, m] = time.split(':')
+    const hour = parseInt(h)
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const display = hour % 12 || 12
+    return `${display}:${m} ${ampm}`
+}
+
+function getTodayStatus(workingHours) {
+    if (!workingHours || !workingHours.length) return { label: 'Hours unavailable', open: false }
+    const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
+    const today = days[new Date().getDay()]
+    const todayHours = workingHours.find(h => h.day === today)
+    if (!todayHours) return { label: 'Hours unavailable', open: false }
+    if (!todayHours.is_open) return { label: 'Closed today', open: false }
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const [openH, openM] = todayHours.open_time.split(':').map(Number)
+    const [closeH, closeM] = todayHours.close_time.split(':').map(Number)
+    const openMinutes = openH * 60 + openM
+    const closeMinutes = closeH * 60 + closeM
+    if (currentMinutes < openMinutes) {
+        return { label: `Closed · Opens ${formatTime(todayHours.open_time)}`, open: false }
+    } else if (currentMinutes >= closeMinutes) {
+        return { label: `Closed · Opened until ${formatTime(todayHours.close_time)}`, open: false }
+    } else {
+        return { label: `Open · Closes ${formatTime(todayHours.close_time)}`, open: true }
+    }
+}
 
 async function fetchServices(){
     const res = await fetch('http://localhost:3000/api/services')
@@ -110,37 +152,156 @@ function goToService(slug){
     router.push(`/service/${slug}`)
 }
 
+window.goToServiceFromMap = (slug) => router.push(`/service/${slug}`)
+
 /* Initially leaflet*/
 
 let map = null
+let userMarker = null
+const userLocation = ref(null)
 
-const searchQuery = ref ('')
-onMounted(async() => {
-     map = L.map('map').setView([11.5564, 104.9282], 13)
-    
-L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap France'
-}).addTo(map)
+function getDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLng = (lng2 - lng1) * Math.PI / 180
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2)
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+}
 
-await fetchServices()
-checkFavs()
-fetchCategories()
-
+const nearbyServices = computed(() => {
+    let filtered = services.value
+    if (activeCategory.value) {
+        filtered = filtered.filter(s => s.category === activeCategory.value)
+    }
+    if (!userLocation.value) return filtered
+    return filtered.filter(s => {
+        if (!s.latitude || !s.longitude) return false
+        const dist = getDistance(userLocation.value.lat, userLocation.value.lng, s.latitude, s.longitude)
+        if (s.provider_type === 'freelancer') return dist <= (s.service_range_km || 10)
+        return dist <= 5
+    })
 })
 
-/*Nearby btn*/
+function placeServiceMarkers() {
+    services.value.forEach(s => {
+        if (!s.latitude || !s.longitude) return
+        const isFreelancer = s.provider_type === 'freelancer'
+        const rangeKm = s.service_range_km || 10
 
-function findNearby(){
-    if (navigator.geolocation){
-        navigator.geolocation.getCurrentPosition((position) =>{
-            const lat = position.coords.latitude
-            const lng = position.coords.longitude
-            map.setView([lat,lng],15)
+        const color = isFreelancer ? '#0d9488' : '#2ec4b6'
+        const icon = L.divIcon({
+            className: '',
+            html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
+                    <path d="M16 0C7.163 0 0 7.163 0 16c0 10 16 26 16 26S32 26 32 16C32 7.163 24.837 0 16 0z" fill="${color}"/>
+                    <circle cx="16" cy="16" r="7" fill="white"/>
+                </svg>
+                <div style="background:${color};color:white;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.2);">${s.category || 'Service'}</div>
+            </div>`,
+            iconSize: [32, 62],
+            iconAnchor: [16, 54]
         })
 
-    }else {
-        alert('Geologation does not support by your browser')
+        let rangeCircle = null
+        if (isFreelancer) {
+            rangeCircle = L.circle([s.latitude, s.longitude], {
+                radius: rangeKm * 1000,
+                color: '#0d9488',
+                fillColor: '#0d9488',
+                fillOpacity: 0.08,
+                weight: 1.5,
+                dashArray: '6,4'
+            })
+        }
+
+        const marker = L.marker([s.latitude, s.longitude], { icon }).addTo(map)
+
+        const stars = '★'.repeat(Math.round(s.avg_rating || 0)) + '☆'.repeat(5 - Math.round(s.avg_rating || 0))
+        const verifiedBadge = s.is_verified ? `<span style="background:#ede9fe;color:#6d28d9;font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:4px;">✓ Verified</span>` : ''
+        const typeBadge = isFreelancer
+            ? `<span style="background:#ccfbf1;color:#0d9488;font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;">🧑‍🔧 Freelancer</span>`
+            : `<span style="background:#ccfbf1;color:#0d9488;font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;">🏪 Shop</span>`
+        const locationLine = isFreelancer
+            ? `<div style="color:#666;font-size:12px;margin-top:2px;">📍 Works within ${rangeKm}km of this area</div>`
+            : `<div style="color:#666;font-size:12px;margin-top:2px;">📍 ${s.address || 'No address'}</div>`
+        const photoHtml = s.photo_url
+            ? `<img src="${s.photo_url}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;margin-bottom:8px;"/>`
+            : `<div style="width:100%;height:80px;background:#ccfbf1;border-radius:8px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;font-size:28px;">${isFreelancer ? '🧑‍🔧' : '🏪'}</div>`
+
+        const popupHtml = `
+            <div style="width:200px;font-family:sans-serif;">
+                ${photoHtml}
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px;">
+                    <b style="font-size:14px;">${s.name}</b>${verifiedBadge}
+                </div>
+                <div style="margin-bottom:4px;">${typeBadge}</div>
+                <div style="color:#f39c12;font-size:13px;">${stars} <span style="color:#666;">(${s.review_count || 0})</span></div>
+                ${locationLine}
+                <button onclick="window.goToServiceFromMap('${s.slug}')" style="margin-top:10px;width:100%;background:#2ec4b6;color:white;border:none;border-radius:8px;padding:7px;font-size:13px;font-weight:700;cursor:pointer;">View Details</button>
+            </div>`
+
+        marker.bindPopup(popupHtml, { maxWidth: 220 })
+
+        if (isFreelancer) {
+            marker.on('click', () => {
+                if (rangeCircle && map.hasLayer(rangeCircle)) {
+                    map.removeLayer(rangeCircle)
+                } else if (rangeCircle) {
+                    rangeCircle.addTo(map)
+                }
+            })
+        }
+    })
+}
+
+function placeUserMarker(lat, lng) {
+    if (userMarker) { userMarker.remove(); userMarker = null }
+    const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:16px;height:16px;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(37,99,235,0.5)"></div>`,
+        iconAnchor: [8, 8]
+    })
+    userMarker = L.marker([lat, lng], { icon }).addTo(map)
+    userMarker.bindPopup('<b>You are here</b>').openPopup()
+}
+
+const searchQuery = ref('')
+
+onMounted(async () => {
+    map = L.map('map').setView([11.5564, 104.9282], 13)
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap France'
+    }).addTo(map)
+
+    await fetchServices()
+    checkFavs()
+    fetchCategories()
+    placeServiceMarkers()
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+            const lat = position.coords.latitude
+            const lng = position.coords.longitude
+            userLocation.value = { lat, lng }
+            map.setView([lat, lng], 14)
+            placeUserMarker(lat, lng)
+        })
     }
+})
+
+function findNearby() {
+    if (!navigator.geolocation) { alert('Geolocation is not supported by your browser'); return }
+    navigator.geolocation.getCurrentPosition((position) => {
+        const lat = position.coords.latitude
+        const lng = position.coords.longitude
+        userLocation.value = { lat, lng }
+        map.setView([lat, lng], 15)
+        placeUserMarker(lat, lng)
+    }, () => {
+        alert('Could not get your location. Please allow location access.')
+    })
 }
 
 const DisplayedCategories = computed(() =>{
@@ -256,6 +417,12 @@ function goToSearch(){
     color:#2ec4b6
 }
 
+.cat-item.active{
+    background: #2ec4b6;
+    color: white;
+    border-color: #2ec4b6;
+}
+
 /* Service List */
 .service-list{
     display: flex;
@@ -349,6 +516,19 @@ box-shadow: 0 20px 8px rgba(46,196,182,0,4);
 .see-all-btn:hover{
     text-decoration: underline;
 }
+
+.verified-badge {
+    display: inline-block;
+    background: #ede9fe;
+    color: #6d28d9;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 
 body.dark-mode .sidebar{ background: var(--bg-sidebar); border-color: var(--border);}
 body.dark-mode .sidebar-section { border-color: var(--border);}

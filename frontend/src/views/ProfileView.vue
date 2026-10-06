@@ -30,7 +30,7 @@
                 </div>
 
                 <div class="state-item">
-                    <div class="state-number">3</div>
+                    <div class="state-number">{{ reviewCount }}</div>
                     <div class="state-label">reviews</div>
                 </div>
                </div>
@@ -69,23 +69,31 @@ import { ref, onMounted } from 'vue'
 const user = JSON.parse(localStorage.getItem('user') || '{}' )
 const requests = ref([])
 const favorites = ref([])
+const reviewCount = ref(0)
 
 
 async function fetchRequests(){
     const res = await fetch(`http://localhost:3000/api/requests/user/${user.id}`)
     const data = await res.json()
-    requests.value = data
+    requests.value = Array.isArray(data) ? data : []
 }
 
 async function fetchFavorites(){
     const res = await fetch(`http://localhost:3000/api/favorites/${user.id}`)
     const data = await res.json()
-    favorites.value = data
+    favorites.value = Array.isArray(data) ? data : []
+}
+
+async function fetchReviewCount(){
+    const res = await fetch(`http://localhost:3000/api/reviews/user/${user.id}`)
+    const data = await res.json()
+    reviewCount.value = Array.isArray(data) ? data.length : 0
 }
 
 onMounted(() =>{
     fetchRequests()
     fetchFavorites()
+    fetchReviewCount()
 })
 
 </script>

@@ -408,6 +408,23 @@ height: 14px;
     background: #d9f7f4;
 }
 
+.a-btn-danger {
+    background: white;
+    color: #e53e3e;
+    display: flex;
+    border: 2px solid #e53e3e;
+    border-radius: 12px;
+    padding: 8px 18px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+}
+.a-btn-danger:hover { background: #fff5f5; }
+body.dark-mode .a-btn-danger { background: #2d1a1a; border-color: #e53e3e; color: #e53e3e; }
+body.dark-mode .a-btn-danger:hover { background: #3d2020; }
+
 .verified{
     font-size: 13px;
     background: #eaedff;

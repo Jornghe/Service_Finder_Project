@@ -33,25 +33,25 @@
                  <div v-if="activeTab === 'dashboard'">
                     <div class="admin-stats">
                         <div class="admin-stat-card">
-                            <div class="admin-stat-num">1,284</div>
+                            <div class="admin-stat-num">{{ stats.totalUsers }}</div>
                             <div class="admin-stat-label">Total Users</div>
                         </div>
                         <div class="admin-stat-card">
-                            <div class="admin-stat-num">342</div>
+                            <div class="admin-stat-num">{{ stats.totalProviders }}</div>
                             <div class="admin-stat-label">Providers</div>
                         </div>
                         <div class="admin-stat-card">
-                            <div class="admin-stat-num">89</div>
+                            <div class="admin-stat-num">{{ stats.pendingVerifications }}</div>
                             <div class="admin-stat-label">Pending</div>
                         </div>
                         <div class="admin-stat-card">
-                            <div class="admin-stat-num">4.7</div>
+                            <div class="admin-stat-num">{{ stats.avgRating }}</div>
                             <div class="admin-stat-label">Average Rating</div>
                         </div>
                     </div>
                </div>
                <!-- Manage Users -->
-                     <div v-else-if="activeTab==='users'">
+                     <div v-else-if="activeTab === 'users'">
                         <div class="admin-table-wrap">
                             <table class="admin-table">
                                 <thead>
@@ -64,20 +64,22 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr>
-                                        <td>Sokha Dara</td>
-                                        <td>sokhadara@gmail.com</td>
-                                        <td><span class="admin-badge provider">Provider</span></td>
-                                        <td>2025-01-10</td>
-                                        <td><button class="admin-btn-sm danger">Suspend</button></td>
+                                    <tr v-for="u in users" :key="u.id">
+                                        <td>{{ u.name }}</td>
+                                        <td>{{ u.email }}</td>
+                                        <td>
+                                            <span class="admin-badge" :class="u.is_suspend ? 'danger-badge' : u.is_provider ? 'provider' : 'user'">
+                                                {{ u.is_suspend ? 'Suspended' : u.is_provider ? 'Provider' : 'User' }}
+                                            </span>
+                                        </td>
+                                        <td>{{ new Date(u.created_at).toLocaleDateString() }}</td>
+                                        <td style="text-align: center;">
+                                            <button class="admin-btn-sm" :class="u.is_suspend ? 'approve' : 'danger'" @click="suspendUser(u.id, u.is_suspend)">
+                                                {{ u.is_suspend ? 'Unsuspend' : 'Suspend' }}
+                                            </button>
+                                        </td>
                                     </tr>
-                                    <tr>
-                                        <td>Meas Kosal</td>
-                                        <td>kosal@email.com</td>
-                                        <td style="text-align: center;"><span class="admin-badge user">User</span></td>
-                                        <td>2025-03-22</td>
-                                        <td style="text-align: center;"><button class="admin-btn-sm danger">Suspend</button></td>
-                                    </tr>
+                                    
                                 </tbody>
                             </table>
                         </div>
@@ -97,12 +99,12 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr>
-                                        <td>AC Repair Pro</td>
-                                        <td>Dara</td>
-                                        <td>Repairs</td>
+                                    <tr v-for="s in listings" :key="s.id">
+                                        <td>{{ s.name }}</td>
+                                        <td>{{ s.users?.name }}</td>
+                                        <td>{{ s.category }}</td>
                                         <td><span class="admin-badge active">Active</span></td>
-                                        <td style="text-align: center;"><button class="admin-btn-sm danger">Remove</button></td>
+                                        <td style="text-align: center;"><button class="admin-btn-sm danger" @click="removeListing(s.id)">Remove</button></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -115,8 +117,8 @@
                             <table class="admin-table">
                                 <thead>
                                     <tr>
+                                        <th>Service</th>
                                         <th>Provider</th>
-                                        <th>ID Type</th>
                                         <th>Submitted</th>
                                         <th>Status</th>
                                         <th style="text-align: center;">Action</th>
@@ -124,18 +126,33 @@
                                 </thead>
 
                                 <tbody>
-                                    <tr>
-                                        <td>Ly Ratha</td>
-                                        <td>ID + License</td>
-                                        <td>2026-09-01</td>
-                                        <td><span class="admin-badge pending">Pending</span></td>
-                                        <td>
-                                            <div class="admin-btn-group">
-                                                <button class="admin-btn-sm approve">Approve</button>
-                                                <button class="admin-btn-sm danger">Reject</button>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    <template v-for="v in verifications" :key="v.service_id">
+                                        <tr>
+                                            <td>{{ v.service_name }}</td>
+                                            <td>{{ v.provider_name }}</td>
+                                            <td>{{ new Date(v.submitted_at).toLocaleDateString() }}</td>
+                                            <td><span class="admin-badge" :class="v.status === 'pending' ? 'pending' : v.status === 'approved' ? 'active' : 'danger-badge'">{{ v.status }}</span></td>
+                                            <td>
+                                                <div class="admin-btn-group">
+                                                    <button class="admin-btn-sm approve" @click="expandedVerification = expandedVerification === v.service_id ? null : v.service_id">Documents</button>
+                                                    <template v-if="v.status === 'pending'">
+                                                        <button class="admin-btn-sm approve" @click="approveVerification(v.service_id)">Approve</button>
+                                                        <button class="admin-btn-sm danger" @click="rejectVerification(v.service_id)">Reject</button>
+                                                    </template>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr v-if="expandedVerification === v.service_id" :key="v.service_id + '-docs'">
+                                            <td colspan="5" style="background: #f5f8ff; padding: 12px 20px;">
+                                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                                    <div v-for="doc in v.documents" :key="doc.id" style="display: flex; align-items: center; gap: 8px; background: white; border: 1px solid #bfcfe8; border-radius: 8px; padding: 8px 12px;">
+                                                        <span style="font-size: 13px; font-weight: 600; color: #1e3a5f;">{{ doc.document_type }}</span>
+                                                        <button class="admin-btn-sm approve" @click="viewDocument(doc.document_url)">View</button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
                                 </tbody>
                             </table>
                         </div>
@@ -147,21 +164,54 @@
                                 <table class="admin-table">
                                     <thead>
                                         <tr>
-                                            <th>Request</th>
-                                            <th>User</th>
-                                            <th>Provider</th>
+                                            <th>Title</th>
+                                            <th>Posted By</th>
+                                            <th>Location</th>
                                             <th>Date</th>
                                             <th style="text-align: center;">Status</th>
                                         </tr>
                                     </thead>
 
                                     <tbody>
+                                        <tr v-for="r in requests" :key="r.id">
+                                            <td>{{ r.title }}</td>
+                                            <td>{{ r.users?.name }}</td>
+                                            <td>{{ r.location_name }}</td>
+                                            <td>{{ new Date(r.created_at).toLocaleDateString() }}</td>
+                                            <td style="text-align: center;"><span class="admin-badge" :class="r.status ==='open' ? 'pending' : 'active'">{{ r.status }}</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Categories -->
+                        <div v-else-if="activeTab === 'categories'">
+                            <div class="admin-table-wrap" style="margin-bottom: 20px; padding: 20px;">
+                                <div style="font-size: 15px; font-weight: 700; color: #1e3a5f; margin-bottom: 12px;">Add New Category</div>
+                                <div style="display: flex; gap: 10px;">
+                                    <input
+                                        class="admin-cat-input"
+                                        type="text"
+                                        placeholder="e.g. Photography"
+                                        v-model="newCategoryName"
+                                        @keydown.enter="addCategory"
+                                    />
+                                    <button class="admin-btn-sm approve" style="padding: 8px 20px; font-size: 14px;" @click="addCategory">Add</button>
+                                </div>
+                            </div>
+                            <div class="admin-table-wrap">
+                                <table class="admin-table">
+                                    <thead>
                                         <tr>
-                                            <td>Plumbing fix</td>
-                                            <td>Sokha</td>
-                                            <td>Mean Seav</td>
-                                            <td>2026-09-08</td>
-                                            <td style="text-align: center;"><span class="admin-badge active">Completed</span></td>
+                                            <th>#</th>
+                                            <th>Category Name</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(cat, index) in categories" :key="cat.id">
+                                            <td style="color: #aaa; width: 50px;">{{ index + 1 }}</td>
+                                            <td>{{ cat.name }}</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -183,12 +233,12 @@
                                     </thead>
 
                                     <tbody>
-                                        <tr>
-                                            <td>"Very Professional and fast"</td>
-                                            <td>Sokha</td>
-                                            <td>Mean Seav</td>
-                                            <td>⭐ 5.0</td>
-                                            <td style="text-align: center;"><button class="admin-btn-sm danger">Remove</button></td>
+                                        <tr v-for="r in reviews" :key="r.id">
+                                            <td>"{{ r.comment }}"</td>
+                                            <td>{{ r.users?.name }}</td>
+                                            <td>{{ r.services?.name }}</td>
+                                            <td>⭐ {{ r.rating }}</td>
+                                            <td style="text-align: center;"><button class="admin-btn-sm danger" @click="removeReview(r.id)">Remove</button></td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -203,12 +253,104 @@
 
 <script setup>
 
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router   = useRouter()
 const activeTab = ref('dashboard')
 
+const stats = ref({
+    totalUsers: 0,
+    totalProviders: 0,
+    pendingVerifications: 0,
+    averageRating: 0
+})
+const expandedVerification = ref(null)
+const users = ref([])
+const listings = ref([])
+const verifications = ref([])
+const requests = ref([])
+const reviews = ref([])
+
+onMounted(async ()=>{
+    await Promise.all([
+        fetchStats(),
+        fetchUsers(),
+        fetchListings(),
+        fetchVerifications(),
+        fetchRequests(),
+        fetchReviews(),
+        fetchCategories()
+    ])
+})
+
+async function fetchStats(){
+    const res = await fetch('http://localhost:3000/api/admin/stats')
+    const data = await res.json()
+    stats.value = data
+}
+
+async function fetchUsers(){
+    const res = await fetch('http://localhost:3000/api/admin/users')
+    const data = await res.json()
+    users.value = Array.isArray(data) ? data : []
+}
+
+async function fetchListings(){
+    const res = await fetch('http://localhost:3000/api/admin/listings')
+    const data = await res.json()
+    listings.value = Array.isArray(data) ? data : []
+}
+
+async function fetchVerifications(){
+    const res = await fetch('http://localhost:3000/api/admin/verifications')
+    const data = await res.json()
+    verifications.value = Array.isArray(data) ? data : []
+}
+
+async function fetchRequests(){
+    const res = await fetch('http://localhost:3000/api/admin/requests')
+    const data = await res.json()
+    requests.value = data
+}
+
+async function fetchReviews(){
+    const res = await fetch('http://localhost:3000/api/admin/reviews')
+    const data = await res.json()
+    reviews.value = Array.isArray(data) ? data : []
+}
+
+
+async function suspendUser(id, currentlySuspended){
+    await fetch(`http://localhost:3000/api/admin/users/${id}/suspend`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suspend: !currentlySuspended })
+    })
+    await fetchUsers()
+}
+
+async function removeListing(id){
+    await fetch(`http://localhost:3000/api/admin/listings/${id}`, { method: 'DELETE' })
+    await fetchListings()
+}
+
+async function approveVerification(serviceId){
+    await fetch(`http://localhost:3000/api/admin/verifications/${serviceId}/approve`, { method: 'PATCH' })
+    expandedVerification.value = null
+    await fetchVerifications()
+}
+
+async function rejectVerification(serviceId){
+    await fetch(`http://localhost:3000/api/admin/verifications/${serviceId}/reject`, { method: 'PATCH' })
+    expandedVerification.value = null
+    await fetchVerifications()
+}
+
+async function removeReview(id){
+    await fetch(`http://localhost:3000/api/admin/reviews/${id}`, { method: 'DELETE' })
+    await fetchReviews()
+}
 const tabs = [
     { key: 'dashboard', label: 'Dashboard', icon:'📊'},
     { key: 'users', label: 'Manage Users', icon: '👥'},
@@ -216,7 +358,7 @@ const tabs = [
     { key: 'verification', label: 'Manage Verifications', icon: '✅'},
     { key: 'requests', label: 'Manage Requests', icon: '📨'},
     { key: 'reviews', label: 'Manage Reviews', icon: '⭐'},
-
+    { key: 'categories', label: 'Categories', icon: '🏷️'},
 ]
 
 const tabTitle ={
@@ -225,8 +367,35 @@ const tabTitle ={
     listings: 'Manage Listings',
     verifications: 'Manage Verifications',
     requests: 'Manage Requests',
-    reviews: 'Manage Reviews'
+    reviews: 'Manage Reviews',
+    categories: 'Categories',
+}
 
+const categories = ref([])
+const newCategoryName = ref('')
+
+async function fetchCategories() {
+    const res = await fetch('http://localhost:3000/api/categories/all')
+    const data = await res.json()
+    categories.value = Array.isArray(data) ? data : []
+}
+
+async function addCategory() {
+    if (!newCategoryName.value.trim()) return
+    const res = await fetch('http://localhost:3000/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newCategoryName.value.trim() })
+    })
+    if (!res.ok) { alert('Failed to add category'); return }
+    newCategoryName.value = ''
+    await fetchCategories()
+}
+
+async function viewDocument(filePath) {
+    const res = await fetch(`http://localhost:3000/api/verifications/signed-url?path=${filePath}`)
+    const data = await res.json()
+    window.open(data.url, '_blank')
 }
 
 function signOut(){
@@ -449,5 +618,17 @@ function signOut(){
     display: flex;
     gap: 6px;
     justify-content: center;
+}
+
+.admin-cat-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1.5px solid #bfcfe8;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+}
+.admin-cat-input:focus {
+    border-color: #2563eb;
 }
 </style>

@@ -4,7 +4,7 @@
         
         <div class="fd-body">
             <div class="fd-hero">
-                <div class="fd-hero-img"></div>
+                <div class="fd-hero-img" :style="service?.photo_url ? `background-image:url('${service.photo_url}');background-size:cover;background-position:center;` : ''"></div>
                 <div class="avatar-img"></div>
             </div>
 
@@ -19,7 +19,7 @@
                 <div class="fd-meta" style="display: flex; align-items: center; gap: 4px;">  
                      {{ service?.avg_rating }} 
                      <vue3-star-ratings :model-value="Number(service?.avg_rating || 0 )" star-size="14" :disable-click="true" star-color="#f39c12" inactive-color="#e0e0e0" />
-                      · <span class="badge-open"> Open · Closes 6PM </span>
+                      · <span class="badge-open" :class="{ 'badge-closed': !getTodayStatus().open }">{{ getTodayStatus().label }}</span>
                     </div>
                 <div class="fd-meta">📍 {{ service?.address }} · 🏪 {{ service?.provider_type }}</div>
                 <div class="fd-price"> ${{ service?.price_min }} - ${{ service?.price_max }} </div>
@@ -27,7 +27,7 @@
             <!--Action Button-->
 
             <div class="fd-action">
-                <button class="a-btn-primary">Chat</button>
+                <button class="a-btn-primary" @click="startChat">Chat</button>
                 <div class="fav-action" @click="toggleFav" :class="{ 'fav-active': isFav}">
                 <HeartButton :size="32" :serviceId= "service?.id" v-model="isFav"/>
                 <span :style="{ color: isFav ? '#e74c3c': '#555'}">Add To Favorites</span>
@@ -38,14 +38,32 @@
              <div class="fd-section">
                 <div class="fd-section-title">About</div>
                 <div class="fd-desc">
-                      We provide professional AC repair, installation and maintenance services.
-                      Available 7 days a week. Fast response and affordable prices.
+                    {{ service?.description || 'No description provided.' }}
                 </div>
              </div>
 
              <div class="fd-section">
                 <div class="fd-section-title">Contact</div>
                 <div class="fd-phone">{{ service?.phone }}</div>
+             </div>
+
+             <!-- Working Hours -->
+             <div class="fd-section" v-if="workingHours.length > 0">
+                <div class="fd-section-title">Working Hours</div>
+                <div v-for="day in dayOrder" :key="day" class="wh-row">
+                    <div class="wh-day-name" :class="{ today: day === ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][new Date().getDay()] }">
+                        {{ day.charAt(0).toUpperCase() + day.slice(1) }}
+                    </div>
+                    <div class="wh-hours">
+                        <template v-if="workingHours.find(h => h.day === day)?.is_open">
+                            <span class="wh-open-dot"></span>
+                            {{ formatTime(workingHours.find(h => h.day === day)?.open_time) }} - {{ formatTime(workingHours.find(h => h.day === day)?.close_time) }}
+                        </template>
+                        <template v-else>
+                            <span class="wh-closed">Closed</span>
+                        </template>
+                    </div>
+                </div>
              </div>
 
              <div class="fd-section">
@@ -101,6 +119,46 @@ const hasReviewed = ref(false)
 const newRating = ref(0)
 const newComment = ref('')
 const submitting = ref(false)
+const workingHours = ref([])
+
+const dayOrder = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+
+function getTodayStatus() {
+    const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
+    const today = days[new Date().getDay()]
+    const todayHours = workingHours.value.find(h => h.day === today)
+    if (!todayHours) return { label: 'Hours unavailable', open: false }
+    if (!todayHours.is_open) return { label: 'Closed today', open: false }
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const [openH, openM] = todayHours.open_time.split(':').map(Number)
+    const [closeH, closeM] = todayHours.close_time.split(':').map(Number)
+    const openMinutes = openH * 60 + openM
+    const closeMinutes = closeH * 60 + closeM
+    if (currentMinutes < openMinutes) {
+        return { label: `Closed · Opens ${formatTime(todayHours.open_time)}`, open: false }
+    } else if (currentMinutes >= closeMinutes) {
+        return { label: `Closed · Opened until ${formatTime(todayHours.close_time)}`, open: false }
+    } else {
+        return { label: `Open · Closes ${formatTime(todayHours.close_time)}`, open: true }
+    }
+}
+
+function formatTime(time) {
+    if (!time) return ''
+    const [h, m] = time.split(':')
+    const hour = parseInt(h)
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const display = hour % 12 || 12
+    return `${display}:${m} ${ampm}`
+}
+
+async function fetchWorkingHours() {
+    if (!service.value?.id) return
+    const res = await fetch(`http://localhost:3000/api/working-hours/${service.value.id}`)
+    const data = await res.json()
+    workingHours.value = Array.isArray(data) ? data : []
+}
 
 let map = null
 
@@ -108,12 +166,51 @@ onMounted( async () =>{
     await fetchService()
     checkIfFav()
     await fetchReviews()
+    await fetchWorkingHours()
     checkIfReviewed()
 
-    map = L.map('fd-map').setView([11.5564, 104.9282],15)
+    const lat = service.value?.latitude || 11.5564
+    const lng = service.value?.longitude || 104.9282
+    const zoom = service.value?.latitude ? 16 : 13
+
+    map = L.map('fd-map').setView([lat, lng], zoom)
     L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap France'
-}).addTo(map)
+    }).addTo(map)
+
+    if (service.value?.latitude && service.value?.longitude) {
+        const isFreelancer = service.value.provider_type === 'freelancer'
+        const color = isFreelancer ? '#0d9488' : '#2ec4b6'
+        const rangeKm = service.value.service_range_km || 10
+
+        const icon = L.divIcon({
+            className: '',
+            html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
+                    <path d="M16 0C7.163 0 0 7.163 0 16c0 10 16 26 16 26S32 26 32 16C32 7.163 24.837 0 16 0z" fill="${color}"/>
+                    <circle cx="16" cy="16" r="7" fill="white"/>
+                </svg>
+                <div style="background:${color};color:white;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;white-space:nowrap;">${service.value.category || 'Service'}</div>
+            </div>`,
+            iconSize: [32, 62],
+            iconAnchor: [16, 54]
+        })
+
+        L.marker([lat, lng], { icon }).addTo(map)
+            .bindPopup(`<b>${service.value.name}</b><br>${isFreelancer ? `Works within ${rangeKm}km` : service.value.address || ''}`)
+            .openPopup()
+
+        if (isFreelancer) {
+            L.circle([lat, lng], {
+                radius: rangeKm * 1000,
+                color,
+                fillColor: color,
+                fillOpacity: 0.08,
+                weight: 1.5,
+                dashArray: '6,4'
+            }).addTo(map)
+        }
+    }
 })
 
 const isFav = ref(false)
@@ -133,6 +230,19 @@ async function fetchService(){
     const res = await fetch(`http://localhost:3000/api/services/${slug}`)
     const data = await res.json()
     service.value = data
+}
+
+async function startChat() {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    if (!user.id) return router.push('/login')
+    if (user.id === service.value?.user_id) return alert('You cannot chat with yourself.')
+    const res = await fetch('http://localhost:3000/api/chat/conversation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_one_id: user.id, user_two_id: service.value.user_id })
+    })
+    const data = await res.json()
+    router.push({ path: '/chat', query: { conversationId: data.id } })
 }
 
 async function fetchReviews(){
@@ -307,6 +417,50 @@ async function submitReview(){
     font-size: 14px;
     font-weight: 600;
     padding: 10px;
+}
+
+.badge-closed {
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
+}
+
+.wh-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 4px 0;
+}
+
+.wh-day-name {
+    width: 100px;
+    font-weight: 600;
+    color: #555;
+}
+
+.wh-day-name.today {
+    color: #2ec4b6;
+    font-weight: 700;
+}
+
+.wh-hours {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #333;
+}
+
+.wh-open-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #2ec4b6;
+    flex-shrink: 0;
+}
+
+.wh-closed {
+    color: #aaa;
+    font-style: italic;
 }
 
 body.dark-mode .fd-body{ background: var(--bg-page);}

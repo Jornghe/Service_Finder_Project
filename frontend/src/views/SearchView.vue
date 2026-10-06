@@ -22,18 +22,18 @@
              <!-- Result -->
               <div class="result-list">
                 <div class="result-card" v-for="service in filteredServices" :key="service.id" @click="router.push(`/service/${service.slug}`)">
-                    <div class="result-image"></div>
+                    <div class="result-image" :style="service.photo_url ? `background-image:url('${service.photo_url}');background-size:cover;background-position:center;` : ''"></div>
                     <div class="result-info">
                         <div class="fd-name"> {{ service.name }}<span v-if="service.is_verified" class="verified"> ✓ Verified </span></div>
                         <div class="fd-meta" style="display: flex; align-items: center; gap:4px;">
                             <span> {{ service.avg_rating }} </span>
                             <vue3-star-ratings v-model="service.avg_rating" :star-size="14" :disable-click="true" star-color="#F39C12" inactive-color="#e0e0e0" />
-                            · <span class="badge-open"> Open </span>
+                            · <span class="badge-open" :class="{ 'badge-closed': !getTodayStatus(service.working_hours).open }">{{ getTodayStatus(service.working_hours).label }}</span>
                         </div>
                         <div class="fd-meta">📍 {{ service.address }} · 🏪 {{  service.provider_type }}</div>
                         <div class="fd-price">${{ service.price_min }} - ${{ service.price_max }}</div>
                     </div>
-                     <div class="heart-wrapper">
+                     <div class="heart-wrapper" @click.stop>
                         <HeartButton :size="35" :serviceId="service.id" v-model="service.isFav"/>
                         </div>
                 </div>
@@ -54,6 +54,37 @@ import Vue3StarRatings from 'vue3-star-ratings'
 
 const searchQuery = ref('')
 const router = useRouter()
+
+function formatTime(time) {
+    if (!time) return ''
+    const [h, m] = time.split(':')
+    const hour = parseInt(h)
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const display = hour % 12 || 12
+    return `${display}:${m} ${ampm}`
+}
+
+function getTodayStatus(workingHours) {
+    if (!workingHours || !workingHours.length) return { label: 'Hours unavailable', open: false }
+    const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
+    const today = days[new Date().getDay()]
+    const todayHours = workingHours.find(h => h.day === today)
+    if (!todayHours) return { label: 'Hours unavailable', open: false }
+    if (!todayHours.is_open) return { label: 'Closed today', open: false }
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const [openH, openM] = todayHours.open_time.split(':').map(Number)
+    const [closeH, closeM] = todayHours.close_time.split(':').map(Number)
+    const openMinutes = openH * 60 + openM
+    const closeMinutes = closeH * 60 + closeM
+    if (currentMinutes < openMinutes) {
+        return { label: `Closed · Opens ${formatTime(todayHours.open_time)}`, open: false }
+    } else if (currentMinutes >= closeMinutes) {
+        return { label: `Closed · Opened until ${formatTime(todayHours.close_time)}`, open: false }
+    } else {
+        return { label: `Open · Closes ${formatTime(todayHours.close_time)}`, open: true }
+    }
+}
 const services = ref([])
 const categories = ref([])
 const activeCategory = ref('All')
@@ -222,6 +253,11 @@ onMounted(async () =>{
     position: absolute;
     bottom: 15px;
     right: 15px;
+}
+
+.badge-closed {
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
 }
 
 body.dark-mode .search-body{ background: var(--bg-page);}

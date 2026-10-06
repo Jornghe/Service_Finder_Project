@@ -74,7 +74,7 @@
 
 <script setup>
 
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 
@@ -126,7 +126,8 @@ async function loginWithGoogle(){
     await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-            redirectTo: 'http://localhost:5173'
+            redirectTo: 'http://localhost:5173',
+            queryParams: { prompt: 'select_account' }
         }
     })
 }

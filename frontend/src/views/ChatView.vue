@@ -13,8 +13,12 @@
                     @click="openConversation(conv)">
                     <div class="chat-avatar"></div>
                     <div class="chat-info">
-                        <div class="chat-name">{{ conv.user_one_id === user.id ? conv.user_two_id :conv.user_one_id }}</div>
+                        <div class="chat-name">{{ conv.user_one_id === user.id ? conv.user_two.name : conv.user_one.name }}</div>
+
+                        <div style="display: flex; justify-content:space-between; align-items:cengter">
                         <div class="chat-message">{{  conv.last_message }}</div>
+                        <div class="chat-time">{{  conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : '' }}</div>
+                        </div>
                     </div>
                 </div>
                
@@ -25,14 +29,15 @@
              <div class="message-panel">
                 <div class="message-header" v-if="activeConversation">
                     <div class="chat-avatar"></div>
-                    <div class="message-name">Conversation</div>
+                    <div class="message-name">{{ activeConversation.user_one_id === user.id ? activeConversation.user_two.name : activeConversation.user_one.name }}</div>
                 </div>
 
                 <div class="message-body">
                    <div v-for="msg in messages" :key="msg.id"
                       class="message"
                       :class="msg.sender_id === user.id ? 'sent': 'received'">
-                        {{ msg.content }}                    
+                       <div> {{ msg.content }} </div>
+                       <div style="font-size: 9px; opacity: 0.6; margin-top: 4px;">{{ new Date(new Date(msg.created_at).getTime() + 7 * 60 * 60 * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Phnom_Penh' }) }}</div>                
                     </div>
                 </div>
 
@@ -51,6 +56,7 @@
 <script setup>
 import NavBar from '@/components/NavBar.vue';
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 
 const newMessage = ref('')
 const conversations = ref([])
@@ -58,6 +64,7 @@ const activeConversation = ref(null)
 const messages = ref([])
 
 const user = JSON.parse(localStorage.getItem('user') || '{}')
+const route = useRoute()
 
 async function fetchConversations(){
     if(!user.id)return
@@ -89,8 +96,12 @@ async function sendMessage(){
     openConversation(activeConversation.value)
 }
 
-onMounted(()=>{
-    fetchConversations()
+onMounted(async ()=>{
+    await fetchConversations()
+    if (route.query.conversationId) {
+        const conv = conversations.value.find(c => c.id === route.query.conversationId)
+        if (conv) openConversation(conv)
+    }
 })
 
 
