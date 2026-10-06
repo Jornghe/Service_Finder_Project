@@ -1,6 +1,17 @@
 const express = require('express')
 const router = express.Router()
 const supabase = require('../supabase')
+const { verifyToken } = require('../middleware/auth')
+
+router.get('/user/:userId', async(req, res) =>{
+    const { userId } = req.params
+    const { data, error } = await supabase
+     .from('reviews')
+     .select('id')
+     .eq('customer_id', userId)
+    if(error) return res.status(500).json({ message: error.message})
+    res.json(data)
+})
 
 router.get('/:serviceId', async(req, res) =>{
     const { serviceId } = req.params
@@ -15,7 +26,7 @@ router.get('/:serviceId', async(req, res) =>{
     
 })
 
-router.post('/', async(req, res) =>{
+router.post('/', verifyToken, async(req, res) =>{
     const { service_id, customer_id, rating, comment } = req.body
 
     //save review
